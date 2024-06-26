@@ -19,7 +19,7 @@
             <SpaceItem>
                 <Button
                     Type="@ButtonType.Link"
-                    OnClick='() => Navigation.NavigateTo($"/pokemon/{context.PID}")'>
+                    OnClick='() => Navigation.NavigateTo($"/pokemon/{Route}/{context.PID}")'>
                     View
                 </Button>
             </SpaceItem>
@@ -32,4 +32,19 @@
     int _pageSize = 10;
 
     [Parameter] public IList<Pokemon> DataSource { get; set; } = [];
+    [Parameter] public PokemonSource Source { get; set; }
+
+    private string Route => Source switch
+    {
+        PokemonSource.Party => "party",
+        PokemonSource.Box => "box",
+        _ => string.Empty
+    };
+
+    public enum PokemonSource
+    {
+        Party,
+        Box
+    }
+
 }

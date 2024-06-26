@@ -1,4 +1,4 @@
-@page "/pokemon/{Pid}"
+@page "/pokemon/{PartyOrBox}/{Pid}"
 @using PKHeX.Facade
 @inject AntdThemeService ThemeService
 
@@ -35,15 +35,21 @@
     [Inject] public required GameService GameService { get; set; }
 
     [Parameter] public required string Pid { get; set; }
+    [Parameter] public required string PartyOrBox { get; set; }
 
     private uint PidNumber => Convert.ToUInt32(Pid);
 
-    private Pokemon? Pokemon =>
-        GameService.Game?.Trainer.Party.Pokemons.FirstOrDefault(p => p.PID == PidNumber)
-        ?? GameService.Game?.Trainer.PokemonBox.All.FirstOrDefault(p => p.PID == PidNumber);
+    private Pokemon? Pokemon => PartyOrBox switch
+    {
+        Party => GameService.Game?.Trainer.Party.Pokemons.FirstOrDefault(p => p.PID == PidNumber),
+        Box => GameService.Game?.Trainer.PokemonBox.All.FirstOrDefault(p => p.PID == PidNumber),
+        _ => null
+    };
 
     private string _activeTab;
 
+    private const string Party = "party";
+    private const string Box = "box";
 }
 
 <style>

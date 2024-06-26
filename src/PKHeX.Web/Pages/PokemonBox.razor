@@ -4,7 +4,7 @@
 
 <PageTitle>Pokemon Box</PageTitle>
 
-<PokemonTable DataSource="@PokemonList" />
+<PokemonTable DataSource="@PokemonList" Source="PokemonTable.PokemonSource.Box" />
 
 @code {
     [Inject] public required GameService GameService { get; set; }

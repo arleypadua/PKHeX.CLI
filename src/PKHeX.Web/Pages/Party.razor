@@ -3,7 +3,7 @@
 
 <PageTitle>Party</PageTitle>
 
-<PokemonTable DataSource="@(GameService.Game?.Trainer.Party.Pokemons ?? [])" />
+<PokemonTable DataSource="@(GameService.Game?.Trainer.Party.Pokemons ?? [])" Source="PokemonTable.PokemonSource.Party" />
 
 @code {
     

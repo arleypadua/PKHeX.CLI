@@ -35,7 +35,7 @@
 
         var testData = await HttpClient.GetByteArrayAsync("/data/savedata.bin");
         GameService.Load(testData, "savedata.bin");
-        Navigation.NavigateTo($"/pokemon/{GameService.Game!.Trainer.Party.Pokemons.First().PID}");
+        Navigation.NavigateTo($"/pokemon/party/{GameService.Game!.Trainer.Party.Pokemons.First().PID}");
     }
 #endif
 
