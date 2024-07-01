@@ -1,5 +1,6 @@
 ﻿using PKHeX.Facade.Repositories;
 using PKHeX.Core;
+using PKHeX.Core.Saves.Encryption.Providers;
 
 namespace PKHeX.Facade;
 

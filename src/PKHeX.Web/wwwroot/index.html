@@ -2,40 +2,43 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>PKHeX.Web</title>
-    <base href="/" />
-    <link rel="stylesheet" href="css/app.css" />
-    <link rel="stylesheet" href="css/antd-extensions.css" />
-    <link rel="icon" type="image/png" href="favicon.png" />
-    <link href="PKHeX.Web.styles.css" rel="stylesheet" />
+    <base href="/"/>
+    <link rel="stylesheet" href="css/app.css"/>
+    <link rel="stylesheet" href="css/antd-extensions.css"/>
+    <link rel="icon" type="image/png" href="favicon.png"/>
+    <link href="PKHeX.Web.styles.css" rel="stylesheet"/>
 
     <script>
-    (function() {
-        var redirect = sessionStorage.redirect;
-        delete sessionStorage.redirect;
-        if (redirect && redirect != location.href) {
-            history.replaceState(null, null, redirect);
-        }
-    })();
+        (function () {
+            var redirect = sessionStorage.redirect;
+            delete sessionStorage.redirect;
+            if (redirect && redirect != location.href) {
+                history.replaceState(null, null, redirect);
+            }
+        })();
     </script>
 </head>
 
 <body>
     <div id="app">
         <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%"/>
+            <circle r="40%" cx="50%" cy="50%"/>
         </svg>
         <div class="loading-progress-text"></div>
     </div>
-
+    
     <div id="blazor-error-ui">
         An unhandled error has occurred.
         <a href="" class="reload">Reload</a>
         <a class="dismiss">🗙</a>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"
+            integrity="sha512-a+SUDuwNzXDvz4XrIcXHuCf089/iJAoN4lmrXJg18XnduKK6YlDHNRalv4yd1N40OKI80tFidF+rqTFKGPoWFQ=="
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="_framework/blazor.webassembly.js"></script>
     <script src="js/jsService.js"></script>
 </body>

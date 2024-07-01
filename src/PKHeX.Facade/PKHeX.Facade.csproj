@@ -7,11 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="PKHeX.Core" Version="24.3.26" />
+    <Folder Include="Base/" />
   </ItemGroup>
 
+<!--  TODO: replace with the actual nuget reference when/if https://github.com/kwsch/PKHeX/pull/4311 gets to stable -->
+<!--  <PackageReference Include="PKHeX.Core" Version="24.3.26" />-->
+  
   <ItemGroup>
-    <Folder Include="Base/" />
+    <ProjectReference Include="..\..\..\PKHeX\PKHeX.Core\PKHeX.Core.csproj" />
   </ItemGroup>
 
 </Project>
