@@ -4,7 +4,7 @@
     @bind-PageIndex="_pageIndex"
     @bind-PageSize="_pageSize"
     Size="TableSize.Small"
-    RowKey="@(x => x.Id)"
+    RowKey="@(x => x.Slot)"
     Responsive>
     <PropertyColumn Title="" Property="@(c => c.Definition.Id)">
         <ItemIcon Item="@context.Definition"/>
@@ -77,11 +77,11 @@
 
         if (_selectedItemCount > 0)
         {
-            Inventory.Set(_selectedItem.Id, (uint)_selectedItemCount.Value);
+            Inventory.SetSlot(_selectedItem.Slot, (uint)_selectedItemCount.Value);
         }
         else
         {
-            Inventory.Remove(_selectedItem.Id);
+            Inventory.RemoveSlot(_selectedItem.Slot);
         }
 
         SetSelectedItem(null);

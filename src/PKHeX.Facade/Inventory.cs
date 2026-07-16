@@ -68,7 +68,7 @@ public class Inventory : IEnumerable<Inventory.Item>
         {
             throw new InvalidOperationException("Cannot set item to None.");
         }
-        
+
         if (AllSupportedItems.All(i => i.Id != itemId))
         {
             throw new InvalidOperationException($"Item {itemId} is not supported in this inventory.");
@@ -80,6 +80,33 @@ public class Inventory : IEnumerable<Inventory.Item>
         Commit();
     }
 
+    public void RemoveSlot(int slot)
+    {
+        if (slot < 0 || slot >= _pouch.Items.Length)
+        {
+            throw new InvalidOperationException($"Slot {slot} does not exist in this inventory.");
+        }
+
+        _pouch.Items[slot].Clear();
+        Commit();
+    }
+
+    public void SetSlot(int slot, uint count)
+    {
+        if (slot < 0 || slot >= _pouch.Items.Length)
+        {
+            throw new InvalidOperationException($"Slot {slot} does not exist in this inventory.");
+        }
+
+        if (_pouch.Items[slot].Index == ItemDefinition.None)
+        {
+            throw new InvalidOperationException($"Slot {slot} is empty; cannot set its count.");
+        }
+
+        _pouch.Items[slot].Count = Convert.ToInt32(count);
+        Commit();
+    }
+
     private void Commit()
     {
         _bag.CopyTo(_game.SaveFile);
@@ -87,7 +114,7 @@ public class Inventory : IEnumerable<Inventory.Item>
 
     private ImmutableList<Item> GetItems()
     {
-        return _pouch.Items.Select(i => new Item(i, _game.ItemRepository.GetGameItem)).ToImmutableList();
+        return _pouch.Items.Select((i, slot) => new Item(i, slot, _game.ItemRepository.GetGameItem)).ToImmutableList();
     }
 
     public sealed class Item
@@ -95,13 +122,16 @@ public class Inventory : IEnumerable<Inventory.Item>
         private readonly Func<ushort, ItemDefinition> _itemFetcher;
         private readonly InventoryItem _item;
 
-        public Item(InventoryItem item, Func<ushort, ItemDefinition> itemFetcher)
+        public Item(InventoryItem item, int slot, Func<ushort, ItemDefinition> itemFetcher)
         {
             _itemFetcher = itemFetcher;
             _item = item;
+            Slot = slot;
         }
 
-        public Item() : this(default!, default!) { }
+        public Item() : this(default!, default, default!) { }
+
+        public int Slot { get; }
 
         public ushort Id => Convert.ToUInt16(_item.Index);
         public string Name => _itemFetcher(Id).Name;
