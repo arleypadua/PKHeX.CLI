@@ -8,7 +8,26 @@
         <TitleTemplate>Items</TitleTemplate>
 
         <PageHeaderExtra>
-            <ButtonOrMenu Actions="ExtraActions" />
+            <Space Wrap>
+                <SpaceItem>
+                    <Button Type="ButtonType.Primary" Icon="plus" OnClick="OnAddItemClick">
+                        Add one item
+                    </Button>
+                </SpaceItem>
+                <SpaceItem>
+                    <Button Type="ButtonType.Default" Icon="appstore-add" OnClick="() => ShowFillConfirmation(InventoryFillMode.StandardItems)">
+                        Add all supported items
+                    </Button>
+                </SpaceItem>
+                @if (Inventories?.HasSupportedKeyItems is true)
+                {
+                    <SpaceItem>
+                        <Button Type="ButtonType.Default" Icon="key" OnClick="() => ShowFillConfirmation(InventoryFillMode.KeyItems)">
+                            Add supported key items
+                        </Button>
+                    </SpaceItem>
+                }
+            </Space>
         </PageHeaderExtra>
     </PageHeader>
 
@@ -34,21 +53,32 @@
         OnCancel="@HandleCancel"/>
 }
 
+<Modal
+    Title="@FillConfirmationTitle"
+    @bind-Visible="_fillConfirmationVisible"
+    OnOk="HandleFillItems"
+    OnCancel="HideFillConfirmation">
+    @if (_pendingFillMode is InventoryFillMode.KeyItems)
+    {
+        <Paragraph>
+            Key items can affect story progression and may not agree with the save's event flags.
+            This attempts to fill each supported key item to its format cap. Existing key-item quantities will be replaced.
+        </Paragraph>
+    }
+    else
+    {
+        <Paragraph>
+            This attempts to fill every supported non-key item, including TM/HM pouches, to @Inventory.ItemTargetCount or its format cap, whichever is lower.
+            Existing quantities will be replaced. Pouch limits can clamp item quantities or leave item slots unfilled.
+        </Paragraph>
+    }
+</Modal>
+
 @code {
     [Inject] public required PlugInRuntime PlugInRuntime { get; set; }
     [Inject] public required GameService GameService { get; set; }
     [Inject] public required AnalyticsService Analytics { get; set; }
-
-    List<ButtonOrMenu.ButtonAction> ExtraActions => new()
-    {
-        new ()
-        {
-            Type = ButtonType.Primary,
-            Icon = IconType.Outline.Plus,
-            Label = "Add",
-            OnClickAsync = OnAddItemClick
-        }
-    };
+    [Inject] public required INotificationService Notification { get; set; }
 
     string? _activeKey;
 
@@ -56,10 +86,15 @@
     Inventory? ActiveInventory => string.IsNullOrWhiteSpace(_activeKey) ? null : Inventories?[_activeKey];
     string[] InventoryTypes => Inventories?.InventoryTypes.OrderBy(t => t).ToArray() ?? [];
     string? DefaultActiveKey => InventoryTypes.FirstOrDefault();
+    string FillConfirmationTitle => _pendingFillMode is InventoryFillMode.KeyItems
+        ? "Add supported key items?"
+        : "Add all supported items?";
 
     #region Add Item Modal
 
     bool _addItemModalVisible;
+    bool _fillConfirmationVisible;
+    InventoryFillMode _pendingFillMode;
 
     Task OnAddItemClick()
     {
@@ -89,6 +124,68 @@
     private void HandleCancel()
     {
         _addItemModalVisible = false;
+    }
+
+    private Task ShowFillConfirmation(InventoryFillMode fillMode)
+    {
+        _pendingFillMode = fillMode;
+        _fillConfirmationVisible = true;
+        return Task.CompletedTask;
+    }
+
+    private Task HideFillConfirmation()
+    {
+        _fillConfirmationVisible = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleFillItems()
+    {
+        if (Inventories is null) return;
+
+        var isKeyItemFill = _pendingFillMode is InventoryFillMode.KeyItems;
+        var fillSummary = isKeyItemFill
+            ? Inventories.SetSupportedKeyItemsToMax()
+            : Inventories.SetAllSupportedToMax();
+        foreach (var inventory in Inventories.InventoryItems.Values)
+        {
+            foreach (var item in inventory.AllExceptNone())
+                await PlugInRuntime.RunAll<IRunOnItemChanged>(hook => hook.OnItemChanged(new(item.Id, (uint)item.Count)));
+        }
+
+        _fillConfirmationVisible = false;
+        var hasLimits = fillSummary.ClampedItemCount > 0 || fillSummary.SkippedItemCount > 0;
+        var itemSlotLabel = isKeyItemFill ? "key-item" : "item";
+        var targetDescription = isKeyItemFill
+            ? "their format caps"
+            : $"{Inventory.ItemTargetCount} or their format caps, whichever is lower";
+        var fillDescription = hasLimits
+            ? $"Filled {fillSummary.FilledItemCount} of {fillSummary.RequestedItemCount} supported {itemSlotLabel} slots to {targetDescription}."
+            : $"Filled all {fillSummary.FilledItemCount} supported {itemSlotLabel} slots to {targetDescription}.";
+        if (fillSummary.ClampedItemCount > 0)
+            fillDescription += $" {fillSummary.ClampedItemCount} {itemSlotLabel} slots were clamped below the requested quantity.";
+        if (fillSummary.SkippedItemCount > 0)
+            fillDescription += $" {fillSummary.SkippedItemCount} {itemSlotLabel} slots could not be filled.";
+
+        var notificationMessage = isKeyItemFill ? "Supported key items added" : "Supported items added";
+        if (hasLimits)
+            notificationMessage += " with limits";
+
+        _ = Notification.Open(new NotificationConfig
+        {
+            Message = notificationMessage,
+            Description = fillDescription,
+            NotificationType = hasLimits
+                ? NotificationType.Warning
+                : NotificationType.Success,
+        });
+        StateHasChanged();
+    }
+
+    enum InventoryFillMode
+    {
+        StandardItems,
+        KeyItems,
     }
 
     #endregion

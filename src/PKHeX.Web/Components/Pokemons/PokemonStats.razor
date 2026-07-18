@@ -46,15 +46,24 @@
 </Flex>
 
 @{ var actions = PlugInRegistry.GetAllEnabledHooks<IPokemonStatsEditAction>().ToList(); }
-@if (actions.Any())
-{
-    <div class="stat_actions">
+<div class="stat_actions">
+    <div>
+        <Button
+            Type="ButtonType.Default"
+            OnClick="HandleMaxEvsClick"
+            AriaLabel="Set a format-aware maximum effort-value distribution">
+            Max EV distribution (up to @Pokemon.EVs.MaximumValue per stat)
+        </Button>
+        <p role="note"><small>Each EV stays within this format's per-stat limit, and the combined EV total stays within its aggregate limit. This does not guarantee encounter legality.</small></p>
+    </div>
+    @if (actions.Any())
+    {
         @foreach (var action in actions)
         {
             @RenderActionButton(action)
         }
-    </div>
-}
+    }
+</div>
 
 <style>
     .stat_actions {
@@ -100,6 +109,12 @@
         }
 
         return Task.CompletedTask;
+    }
+
+    private async Task HandleMaxEvsClick()
+    {
+        Pokemon.EVs.SetToMaximum();
+        await OnPokemonChanged.InvokeAsync(Pokemon);
     }
 
     private Dictionary<string, DescriptionRecord> Descriptions => new()

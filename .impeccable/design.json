@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-16T00:00:00Z",
+  "title": "Design System: PKHeX Everywhere",
+  "extensions": {
+    "colorMeta": {
+      "primary-action": {
+        "role": "primary",
+        "displayName": "Workbench Blue",
+        "canonical": "#1890ff",
+        "tonalRamp": [
+          "#002766",
+          "#003a8c",
+          "#0050b3",
+          "#096dd9",
+          "#1890ff",
+          "#40a9ff",
+          "#91d5ff",
+          "#e6f7ff"
+        ]
+      },
+      "neutral-surface": {
+        "role": "neutral",
+        "displayName": "Tool Surface",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#141414",
+          "#262626",
+          "#434343",
+          "#8c8c8c",
+          "#bfbfbf",
+          "#d9d9d9",
+          "#f5f5f5",
+          "#ffffff"
+        ]
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "Failure Red",
+        "canonical": "#b32121",
+        "tonalRamp": [
+          "#2e0707",
+          "#4d0c0c",
+          "#721212",
+          "#981b1b",
+          "#b32121",
+          "#d54949",
+          "#ed9292",
+          "#fae6e6"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Workbench Title",
+        "purpose": "Page titles and major workflow headings."
+      },
+      "body": {
+        "displayName": "Save Data Body",
+        "purpose": "Instructions, field values, tables, and result summaries."
+      },
+      "label": {
+        "displayName": "Control Label",
+        "purpose": "Buttons, fields, tabs, and status labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "overlay-only",
+        "value": "Ant Design active-theme overlay shadow",
+        "purpose": "Dropdowns, drawers, modals, and notifications only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-feedback",
+        "value": "150-250ms ease-out",
+        "purpose": "Hover, focus, selection, and overlay state changes; disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-check",
+        "value": "375px"
+      },
+      {
+        "name": "tablet-check",
+        "value": "768px"
+      },
+      {
+        "name": "desktop-check",
+        "value": "1024px"
+      },
+      {
+        "name": "wide-check",
+        "value": "1440px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single emphasized action in a workflow area.",
+      "html": "<button class=\"ds-btn-primary\">Add to box</button>",
+      "css": ".ds-btn-primary { min-height: 32px; padding: 4px 15px; border: 1px solid #1890ff; border-radius: 2px; background: #1890ff; color: #fff; font: 400 14px/1.5715 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; transition: background-color 180ms ease-out, border-color 180ms ease-out; } .ds-btn-primary:hover { background: #40a9ff; border-color: #40a9ff; } .ds-btn-primary:focus-visible { outline: 2px solid #1890ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A labeled compact field for filtering available Pokemon or items.",
+      "html": "<label class=\"ds-field\">Available Pokemon<input class=\"ds-input-search\" type=\"search\" placeholder=\"Search species\"></label>",
+      "css": ".ds-field { display: grid; gap: 5px; color: #000000d9; font: 400 14px/1.5715 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; } .ds-input-search { min-height: 32px; padding: 4px 11px; border: 1px solid #d9d9d9; border-radius: 2px; background: #fff; color: #000000d9; font: inherit; transition: border-color 180ms ease-out; } .ds-input-search:hover { border-color: #40a9ff; } .ds-input-search:focus-visible { border-color: #1890ff; outline: 2px solid #1890ff; outline-offset: 1px; }"
+    },
+    {
+      "name": "Side Navigation Item",
+      "kind": "nav",
+      "description": "A compact item in the existing dark collapsible navigation.",
+      "html": "<a class=\"ds-nav-item\" href=\"#\">Pokemon Box</a>",
+      "css": ".ds-nav-item { display: flex; min-height: 40px; align-items: center; padding: 0 16px; color: #fff; background: #001529; font: 400 14px/1.5715 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; text-decoration: none; transition: color 180ms ease-out, background-color 180ms ease-out; } .ds-nav-item:hover { color: #40a9ff; } .ds-nav-item:focus-visible { outline: 2px solid #1890ff; outline-offset: -2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Save Workbench",
+    "overview": "A practical work surface where save context, available actions, editable data, and operation results remain easy to locate. The system is flat, structured, compact, and explicit.",
+    "keyCharacteristics": [
+      "Compact, information-dense layouts with 20-24px section spacing.",
+      "Visible save context, capacity, and compatibility before mutation.",
+      "One blue action accent used for primary actions, selection, and focus.",
+      "Existing Ant Design light and dark themes, not a separate visual rebrand.",
+      "Pokemon sprites and icons used as functional recognition aids."
+    ],
+    "rules": [
+      {
+        "name": "The One Action Color Rule",
+        "body": "Blue means interactive, selected, or focused. It is never background decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat Workbench Rule",
+        "body": "Static tool areas and data tables remain flat. Shadows are reserved for overlays.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep current-save context, available box capacity, and compatibility visible near bulk actions.",
+      "Do use existing Ant Design controls and state behavior before creating custom primitives."
+    ],
+    "donts": [
+      "Don't create a neon gaming dashboard that prioritizes visual effects over data clarity.",
+      "Don't ship destructive or bulk actions with unclear scope, silent partial completion, or implicit overwrite behavior."
+    ]
+  }
+}

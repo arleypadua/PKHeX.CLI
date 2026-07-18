@@ -1,0 +1,224 @@
+@using PKHeX.Facade.Repositories
+@implements IDisposable
+@inject EncounterService EncounterService
+@inject GameService GameService
+
+@if (GameService.IsLoaded)
+{
+<section class="available-pokemon" aria-labelledby="available-pokemon-title">
+    <Flex Direction="FlexDirection.Vertical" Style="width: 100%; gap: 16px;">
+        <div>
+            <Title Level="3" Id="available-pokemon-title">Available Pokemon</Title>
+            <Text>Search species supported by this save, choose quantities, then add them to empty box slots.</Text>
+        </div>
+
+        <div class="available-pokemon__capacity" aria-live="polite">
+            <Text Strong>@PokemonBox.OccupiedSlotCount of @PokemonBox.Capacity slots used</Text>
+            <Text>@PokemonBox.AvailableSlotCount available</Text>
+        </div>
+
+        <div class="available-pokemon__picker">
+            <label class="available-pokemon__field">
+                <Text Strong>Pokemon species</Text>
+                <SpeciesSelect
+                    @key="GameService.LoadedGame"
+                    Source="SpeciesSelect.DataSource.CurrentGame"
+                    EnableVirtualization="false"
+                    SelectedSpecies="_selectedSpecies"
+                    SelectedSpeciesChanged="HandleSelectedSpeciesChanged" />
+            </label>
+
+            <label class="available-pokemon__field">
+                <Text Strong>Quantity</Text>
+                <AntDesign.InputNumber
+                    TValue="int?"
+                    @bind-Value="_selectedQuantity"
+                    Min="1"
+                    Max="@Math.Max(1, PokemonBox.AvailableSlotCount)" />
+            </label>
+
+            <Button
+                Type="ButtonType.Default"
+                Icon="plus"
+                Disabled="@(_selectedSpecies is null || PokemonBox.AvailableSlotCount == 0)"
+                OnClick="QueueSelectedPokemon">
+                Add to queue
+            </Button>
+        </div>
+
+        @if (_queuedPokemon.Count > 0)
+        {
+            <div class="available-pokemon__queue" aria-label="Pokemon queued for addition">
+                @foreach (var queuedPokemon in _queuedPokemon)
+                {
+                    <div class="available-pokemon__queue-row" @key="queuedPokemon.Species.Species">
+                        <PokemonIcon Species="queuedPokemon.Species.Species" />
+                        <Text>@queuedPokemon.Species.Name</Text>
+                        <Text Strong>@($"x{queuedPokemon.Quantity}")</Text>
+                        <Button
+                            Type="ButtonType.Text"
+                            Icon="delete"
+                            OnClick="() => RemoveQueuedPokemon(queuedPokemon)"
+                            AriaLabel="@($"Remove {queuedPokemon.Species.Name} from queue")" />
+                    </div>
+                }
+            </div>
+
+            <Button
+                Type="ButtonType.Primary"
+                Disabled="@(PokemonBox.AvailableSlotCount == 0)"
+                Loading="_isAdding"
+                OnClick="AddQueuedPokemon">
+                Add @_queuedPokemon.Sum(queuedPokemon => queuedPokemon.Quantity) Pokemon to box
+            </Button>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_operationMessage))
+        {
+            <Alert
+                Type="@_operationAlertType"
+                Message="@_operationMessage"
+                ShowIcon="true"
+                Closable
+                OnClose="ClearOperationMessage" />
+        }
+    </Flex>
+</section>
+}
+
+@code {
+    [Parameter] public EventCallback OnPokemonAdded { get; set; }
+
+    private PokemonBox PokemonBox => GameService.LoadedGame.Trainer.PokemonBox;
+    private SpeciesDefinition? _selectedSpecies;
+    private int? _selectedQuantity = 1;
+    private readonly List<QueuedPokemon> _queuedPokemon = [];
+    private bool _isAdding;
+    private string? _operationMessage;
+    private AlertType _operationAlertType = AlertType.Success;
+
+    protected override void OnInitialized()
+    {
+        GameService.OnGameLoaded += HandleGameLoaded;
+        GameService.OnActiveGameChanged += HandleGameLoaded;
+        ResetForLoadedGame();
+    }
+
+    private void HandleGameLoaded(object? sender, EventArgs eventArgs)
+    {
+        ResetForLoadedGame();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ResetForLoadedGame()
+    {
+        _selectedSpecies = null;
+        _selectedQuantity = 1;
+        _queuedPokemon.Clear();
+        ClearOperationMessage();
+    }
+
+    private void HandleSelectedSpeciesChanged(SpeciesDefinition species)
+    {
+        if (!EncounterService.HasCompatibleEncounter(species))
+        {
+            _selectedSpecies = null;
+            _operationMessage = $"No compatible encounter is available for {species.Name} in this save.";
+            _operationAlertType = AlertType.Warning;
+            return;
+        }
+
+        _selectedSpecies = species;
+        ClearOperationMessage();
+    }
+
+    private void QueueSelectedPokemon()
+    {
+        if (_selectedSpecies is null || _selectedQuantity is null) return;
+
+        var remainingQueueCapacity = PokemonBox.AvailableSlotCount - _queuedPokemon.Sum(entry => entry.Quantity);
+        if (remainingQueueCapacity <= 0)
+        {
+            _operationMessage = "The queue already uses every available box slot.";
+            _operationAlertType = AlertType.Warning;
+            return;
+        }
+
+        var quantity = Math.Clamp(_selectedQuantity.Value, 1, remainingQueueCapacity);
+        var existingQueueEntry = _queuedPokemon.FirstOrDefault(entry => entry.Species.Species == _selectedSpecies.Species);
+        if (existingQueueEntry is null)
+            _queuedPokemon.Add(new QueuedPokemon(_selectedSpecies, quantity));
+        else
+            existingQueueEntry.Quantity += quantity;
+
+        _selectedSpecies = null;
+        _selectedQuantity = 1;
+        ClearOperationMessage();
+    }
+
+    private void RemoveQueuedPokemon(QueuedPokemon queuedPokemon)
+    {
+        _queuedPokemon.Remove(queuedPokemon);
+    }
+
+    private async Task AddQueuedPokemon()
+    {
+        _isAdding = true;
+        var generatedPokemon = new List<Pokemon>();
+        var unavailableSpecies = new List<string>();
+
+        foreach (var queuedPokemon in _queuedPokemon)
+        {
+            for (var pokemonIndex = 0; pokemonIndex < queuedPokemon.Quantity; pokemonIndex++)
+            {
+                var pokemon = EncounterService.CreateCompatiblePokemon(queuedPokemon.Species);
+                if (pokemon is null)
+                {
+                    unavailableSpecies.Add(queuedPokemon.Species.Name);
+                    break;
+                }
+
+                generatedPokemon.Add(pokemon);
+            }
+        }
+
+        var additionSummary = PokemonBox.AddToEmptySlots(generatedPokemon);
+        var messageParts = new List<string>
+        {
+            $"Added {additionSummary.AddedCount} of {generatedPokemon.Count} generated Pokemon."
+        };
+
+        if (additionSummary.CapacitySkippedCount > 0)
+            messageParts.Add($"{additionSummary.CapacitySkippedCount} did not fit in the box.");
+        if (additionSummary.IncompatibleCount > 0)
+            messageParts.Add($"{additionSummary.IncompatibleCount} could not be converted for this save.");
+        if (unavailableSpecies.Count > 0)
+            messageParts.Add($"No compatible encounter: {string.Join(", ", unavailableSpecies.Distinct())}.");
+
+        _operationMessage = string.Join(" ", messageParts);
+        _operationAlertType = additionSummary.AddedCount == generatedPokemon.Count && unavailableSpecies.Count == 0
+            ? AlertType.Success
+            : AlertType.Warning;
+        _queuedPokemon.Clear();
+        _isAdding = false;
+
+        await OnPokemonAdded.InvokeAsync();
+    }
+
+    private void ClearOperationMessage()
+    {
+        _operationMessage = null;
+    }
+
+    private sealed class QueuedPokemon(SpeciesDefinition species, int quantity)
+    {
+        public SpeciesDefinition Species { get; } = species;
+        public int Quantity { get; set; } = quantity;
+    }
+
+    public void Dispose()
+    {
+        GameService.OnGameLoaded -= HandleGameLoaded;
+        GameService.OnActiveGameChanged -= HandleGameLoaded;
+    }
+}

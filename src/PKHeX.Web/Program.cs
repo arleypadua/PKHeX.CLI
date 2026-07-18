@@ -5,6 +5,7 @@ using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using PKHeX.Core;
+using PKHeX.Facade.Repositories;
 using PKHeX.Web;
 using PKHeX.Web.BackendApi;
 using PKHeX.Web.BackendApi.Repositories;
@@ -52,6 +53,7 @@ builder.Services.AddScoped<BackendApiAuthHandler>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<EncounterService>();
 builder.Services.AddScoped<LoadPokemonService>();
+builder.Services.AddScoped<SmogonMoveSetRepository>();
 builder.Services.AddScoped<AnalyticsResultsService>();
 builder.Services.AddScoped<NewsService>();
 

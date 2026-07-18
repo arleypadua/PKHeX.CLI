@@ -1,6 +1,23 @@
 @using PKHeX.Facade.Repositories
 
 <Flex Style="gap: 20px; width: 100%" Direction="FlexDirection.Vertical" Wrap="FlexWrap.Wrap">
+    <Space Wrap>
+        <SpaceItem>
+            <Button Type="ButtonType.Primary" Icon="check-circle" OnClick="ApplyLegalSuggestions">
+                Suggest legal moves
+            </Button>
+        </SpaceItem>
+        <SpaceItem>
+            <Button
+                Type="ButtonType.Default"
+                Icon="trophy"
+                Loading="_isLoadingCompetitivePreset"
+                OnClick="ApplyCompetitiveSuggestions">
+                Suggest competitive moves
+            </Button>
+        </SpaceItem>
+    </Space>
+
     <ResponsibleDescriptions Bordered Title="Move 1" Size="DescriptionsSize.Small">
         <DescriptionsItem Title="Move" Style="max-width: 250px">
             <MoveSelect
@@ -48,6 +65,10 @@
 @code {
     [Parameter] public required Pokemon Pokemon { get; set; }
     [Parameter] public EventCallback<Pokemon> OnPokemonChanged { get; set; }
+    [Inject] public required SmogonMoveSetRepository SmogonMoveSets { get; set; }
+    [Inject] public required INotificationService Notification { get; set; }
+
+    private bool _isLoadingCompetitivePreset;
 
     private IList<ushort> AlreadyAssigned => Pokemon.Moves
         .Where(m => m.Value.Move != MoveDefinition.None)
@@ -63,4 +84,68 @@
         Pokemon.ChangeMove(index, move);
         return OnPokemonChanged.InvokeAsync(Pokemon);
     }
+
+    private async Task ApplyLegalSuggestions()
+    {
+        var suggestedMoves = MoveRepository.Instance.SuggestedMovesFor(Pokemon);
+        if (suggestedMoves.Count == 0)
+        {
+            ShowNoSuggestionsNotification();
+            return;
+        }
+
+        Pokemon.ChangeMoves(suggestedMoves);
+        await OnPokemonChanged.InvokeAsync(Pokemon);
+        ShowSuggestionNotification(
+            "Legal moves applied",
+            "PKHeX selected a legality-aware move set.",
+            NotificationType.Success);
+    }
+
+    private async Task ApplyCompetitiveSuggestions()
+    {
+        _isLoadingCompetitivePreset = true;
+        try
+        {
+            var suggestion = await SmogonMoveSets.SuggestMovesFor(Pokemon);
+            if (suggestion.Moves.Count == 0)
+            {
+                ShowNoSuggestionsNotification();
+                return;
+            }
+
+            Pokemon.ChangeMoves(suggestion.Moves);
+            await OnPokemonChanged.InvokeAsync(Pokemon);
+
+            ShowSuggestionNotification(
+                suggestion.UsedCompetitivePreset
+                    ? "Competitive moves applied"
+                    : "Legal moves applied",
+                suggestion.UsedCompetitivePreset
+                    ? "Applied a Smogon preset after filtering every move through PKHeX legality."
+                    : "No compatible Smogon preset was available, so PKHeX legal suggestions were applied instead.",
+                suggestion.UsedCompetitivePreset
+                    ? NotificationType.Success
+                    : NotificationType.Warning);
+        }
+        finally
+        {
+            _isLoadingCompetitivePreset = false;
+        }
+    }
+
+    private void ShowNoSuggestionsNotification() => ShowSuggestionNotification(
+        "No move suggestions available",
+        "PKHeX could not produce a legal move set for this Pokemon.",
+        NotificationType.Warning);
+
+    private void ShowSuggestionNotification(
+        string message,
+        string description,
+        NotificationType notificationType) => _ = Notification.Open(new NotificationConfig
+    {
+        Message = message,
+        Description = description,
+        NotificationType = notificationType,
+    });
 }

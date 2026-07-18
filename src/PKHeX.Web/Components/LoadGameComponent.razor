@@ -18,9 +18,26 @@
             <DescriptionsItem Title="Version">@GameService.LoadedGame.SaveVersion.Name</DescriptionsItem>
         </Descriptions>
 
+        @if (GameService.HasDraft)
+        {
+            <Alert
+                Type="@AlertType.Info"
+                Message="Finish editing the draft first"
+                Description="Apply or discard the Home draft before exporting or opening another save."
+                ShowIcon="true"
+                Style="width: 100%; max-width: 500px;" />
+        }
+
         <Flex Direction="FlexDirection.Vertical" Style="width: 100%; max-width: 300px; gap: 20px;">
-            <Button Type="@ButtonType.Primary" Icon="@IconType.Outline.Export" OnClick='ExportSaveAsync'>Export</Button>
-            <Button Icon="@IconType.Outline.FolderOpen" OnClick='OpenFilePickerAsync'>Open new...</Button>
+            <Tooltip Title="@(GameService.HasDraft ? DraftBlockingMessage : null)">
+                <Button Type="@ButtonType.Primary" Icon="@IconType.Outline.Export" OnClick='ExportSaveAsync' Disabled="@GameService.HasDraft">Export</Button>
+            </Tooltip>
+            <Tooltip Title="@(GameService.HasDraft ? DraftBlockingMessage : null)">
+                <Button Icon="@IconType.Outline.FolderOpen" OnClick='OpenFilePickerAsync' Disabled="@GameService.HasDraft">Open new...</Button>
+            </Tooltip>
+            <Tooltip Title="@(GameService.HasDraft ? DraftBlockingMessage : null)">
+                <Button Danger Type="@ButtonType.Default" OnClick="ShowRestoreOriginalConfirmation" Disabled="@GameService.HasDraft">Restore original</Button>
+            </Tooltip>
         </Flex>
         
         <LoadBottomAdSlot />
@@ -57,12 +74,25 @@ else
 
 <InputFile OnChange="LoadSave" @ref="_inputGameFile" class="hidden-file-input"></InputFile>
 
+<Modal
+    Title="Restore the original uploaded save?"
+    @bind-Visible="_restoreOriginalConfirmationVisible"
+    OnOk="RestoreOriginal"
+    OnCancel="HideRestoreOriginalConfirmation">
+    <Paragraph>
+        This discards all changes applied during this session. Future exports will return to the original uploaded file.
+    </Paragraph>
+</Modal>
+
 
 @code {
     [Inject] public required GameService GameService { get; set; }
     [Inject] public required AnalyticsService Analytics { get; set; }
 
     private InputFile _inputGameFile = default!;
+    private bool _restoreOriginalConfirmationVisible;
+
+    private const string DraftBlockingMessage = "Apply or discard the Home draft before continuing.";
 
     private List<ButtonOrMenu.ButtonAction> EmptyActions => new[]
         {
@@ -95,6 +125,8 @@ else
 
     private async Task LoadSave(InputFileChangeEventArgs e)
     {
+        if (GameService.HasDraft) return;
+
         using MemoryStream ms = new MemoryStream();
 
         try
@@ -127,7 +159,7 @@ else
 
     private async Task ExportSaveAsync()
     {
-        if (!GameService.IsLoaded) return;
+        if (!GameService.IsLoaded || GameService.HasDraft) return;
 
         var stream = GameService.Export();
         await Js.DownloadFile(stream, GameService.FileName ?? string.Empty);
@@ -148,7 +180,40 @@ else
         return Task.CompletedTask;
     }
 
-    private async Task OpenFilePickerAsync() => await Js.ClickOnAsync(_inputGameFile.Element);
+    private async Task OpenFilePickerAsync()
+    {
+        if (GameService.HasDraft) return;
+        await Js.ClickOnAsync(_inputGameFile.Element);
+    }
+
+    private void ShowRestoreOriginalConfirmation()
+    {
+        if (GameService.HasDraft) return;
+
+        _restoreOriginalConfirmationVisible = true;
+    }
+
+    private Task HideRestoreOriginalConfirmation()
+    {
+        _restoreOriginalConfirmationVisible = false;
+        return Task.CompletedTask;
+    }
+
+    private Task RestoreOriginal()
+    {
+        if (!GameService.IsLoaded || GameService.HasDraft) return Task.CompletedTask;
+
+        GameService.RestoreOriginal();
+        _restoreOriginalConfirmationVisible = false;
+        _ = Notification.Open(new NotificationConfig
+        {
+            Message = "Original save restored",
+            Description = "Applied session changes were discarded. Export now uses the uploaded file.",
+            NotificationType = NotificationType.Success,
+        });
+
+        return Task.CompletedTask;
+    }
 
     private const int MaxFileSize = 6 * 1024 * 1000;
 

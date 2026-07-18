@@ -5,15 +5,15 @@
 <Select TItem="SpeciesDefinition"
         TItemValue="Species?"
         DataSource="@_species"
-        Value="@SelectedValue"
-        OnSelectedItemChanged="SelectedValueChanged"
+         @bind-Value="@SelectedValue"
+         OnSelectedItemChanged="SelectedSpeciesChangedInternal"
         LabelName="@nameof(SpeciesDefinition.Name)"
         ValueName="@nameof(SpeciesDefinition.Species)"
         Placeholder="Select a species"
         DefaultActiveFirstOption="false"
         Disabled="Disabled"
         EnableSearch
-        EnableVirtualization>
+        EnableVirtualization="EnableVirtualization">
     <LabelTemplate>
         @RenderItem(context)
     </LabelTemplate>
@@ -26,26 +26,20 @@
     [Parameter] public required DataSource Source { get; set; }
     [Parameter] public bool ShowIcon { get; set; } = true;
     [Parameter] public bool Disabled { get; set; } = false;
+    [Parameter] public bool EnableVirtualization { get; set; } = true;
+    [Parameter] public Func<SpeciesDefinition, bool>? SpeciesFilter { get; set; }
     
     [Parameter] public SpeciesDefinition? SelectedSpecies { get; set; }
     [Parameter] public EventCallback<SpeciesDefinition> SelectedSpeciesChanged { get; set; }
-    [Parameter] public bool IgnoreRenderingEvents { get; set; }
-
-    private Species? SelectedValue => SelectedSpecies?.Species;
+    private Species? SelectedValue
+    {
+        get => SelectedSpecies?.Species;
+        set { }
+    }
 
     private List<SpeciesDefinition> _species = [];
-    private bool _dataSourceJustLoaded = true;
-
-    private Task SelectedValueChanged(SpeciesDefinition? definition)
-    {
-        if (_dataSourceJustLoaded)
-        {
-            _dataSourceJustLoaded = false;
-            return Task.CompletedTask;
-        }
-
-        return SelectedSpeciesChanged.InvokeAsync(definition);
-    }
+    private Task SelectedSpeciesChangedInternal(SpeciesDefinition species) =>
+        SelectedSpeciesChanged.InvokeAsync(species);
 
     RenderFragment RenderItem(SpeciesDefinition item)
     {
@@ -73,9 +67,11 @@
                     : SpeciesRepository.GetEvolutionsFrom(SelectedSpecies.Species, EntityContext.Gen9) // assumes last gen
                 : throw new ArgumentException("Selected species is required when OnlySpeciesChain DataSource is used", nameof(SelectedSpecies)),
             _ => SpeciesRepository.All.Values
-        }).Where(SpeciesDefinition.IsSome).ToList();
+        })
+            .Where(SpeciesDefinition.IsSome)
+            .Where(species => SpeciesFilter?.Invoke(species) ?? true)
+            .ToList();
         
-        _dataSourceJustLoaded = IgnoreRenderingEvents;
     }
 
     public enum DataSource

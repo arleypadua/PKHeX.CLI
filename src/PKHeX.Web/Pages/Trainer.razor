@@ -1,0 +1,211 @@
+@page "/trainer"
+@inject GameService GameService
+
+@* dry-new: Trainer editing needs a route that coordinates the GameService draft lifecycle and the typed TrainerEditor capability contract. *@
+
+<PageTitle>Trainer</PageTitle>
+
+<section aria-labelledby="trainer-title">
+    <Flex Direction="FlexDirection.Vertical" Style="width: 100%; gap: 20px;">
+        <div>
+            <Title Level="1" Id="trainer-title">Trainer</Title>
+            <Text>Review your trainer profile, resources, and play time. Edit only the fields this save format supports.</Text>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_operationMessage))
+        {
+            <div role="@(_operationAlertType == AlertType.Error ? "alert" : "status")" aria-live="polite">
+                <Alert Type="@_operationAlertType" Message="@_operationMessage" ShowIcon="true" Closable OnClose="ClearOperationMessage" />
+            </div>
+        }
+
+        @if (_game is null)
+        {
+            <Alert
+                Type="@AlertType.Info"
+                Message="Load a save to edit trainer details"
+                Description="Trainer details become available after you load a save file."
+                ShowIcon="true" />
+        }
+        else
+        {
+            <Alert
+                Type="@(_hasTrainerDraft ? AlertType.Info : AlertType.Default)"
+                Message="@(_hasTrainerDraft ? "Editing a trainer draft" : "Viewing the active save")"
+                Description="@(_hasTrainerDraft ? "Changes stay in this draft until you apply them." : "Start a draft before changing any supported field.")"
+                ShowIcon="true" />
+
+            @if (GameService.HasDraft && !_hasTrainerDraft)
+            {
+                <Alert
+                    Type="@AlertType.Warning"
+                    Message="Another editor has an active draft"
+                    Description="Apply or discard that draft before starting a trainer draft."
+                    ShowIcon="true" />
+            }
+
+            <section aria-labelledby="trainer-profile-title">
+                <Title Level="2" Id="trainer-profile-title">Profile</Title>
+                <Descriptions Bordered Column="1" Size="DescriptionsSize.Small">
+                    <DescriptionsItem Title="TID/SID">@_game.Trainer.Id</DescriptionsItem>
+
+                    <DescriptionsItem Title="Trainer name">
+                        @if (Capabilities.CanEditName)
+                        {
+                            <label for="trainer-name">Trainer name</label>
+                            <Input
+                                Id="trainer-name"
+                                TValue="string"
+                                Value="@_trainerName"
+                                OnChange="HandleNameChanged"
+                                name="trainer-name"
+                                Disabled="@(!_hasTrainerDraft)" />
+                        }
+                        else
+                        {
+                            <Text>@_game.Trainer.Name</Text>
+                            <span class="ant-typography ant-typography-secondary">This save format does not support editing the trainer name.</span>
+                        }
+                    </DescriptionsItem>
+
+                    <DescriptionsItem Title="Gender">
+                        @if (Capabilities.CanEditGender)
+                        {
+                            <GenderSelector
+                                Gender="@_game.Trainer.Gender"
+                                OnGenderChanged="HandleGenderChanged"
+                                Disabled="@(!_hasTrainerDraft)" />
+                        }
+                        else
+                        {
+                            <Text>@_game.Trainer.Gender.Name</Text>
+                            <span class="ant-typography ant-typography-secondary">This save format does not support editing trainer gender.</span>
+                        }
+                    </DescriptionsItem>
+                </Descriptions>
+            </section>
+
+            <section aria-labelledby="trainer-resources-title">
+                <Title Level="2" Id="trainer-resources-title">Resources</Title>
+                @if (Capabilities.CanEditMoney)
+                {
+                    <Descriptions Bordered Column="1" Size="DescriptionsSize.Small">
+                        <DescriptionsItem>
+                            <TitleTemplate>
+                                <label for="trainer-money_input">Money</label>
+                            </TitleTemplate>
+                            <ChildContent>
+                                <AntDesign.InputNumber
+                                    Id="trainer-money"
+                                    TValue="uint"
+                                    Formatter='value => $"$ {value}"'
+                                    Value="@_game.Trainer.Money.Amount"
+                                    OnChange="HandleMoneyChanged"
+                                    name="trainer-money"
+                                    Disabled="@(!_hasTrainerDraft)"
+                                    Style="width: 100%; max-width: 170px;"
+                                    Min="0" />
+                            </ChildContent>
+                        </DescriptionsItem>
+                    </Descriptions>
+                }
+                else
+                {
+                    <Alert
+                        Type="@AlertType.Info"
+                        Message="Money is read-only for this save"
+                        Description="The trainer capability contract did not verify a safe money write for this format."
+                        ShowIcon="true" />
+                }
+            </section>
+
+            <section aria-labelledby="trainer-play-time-title">
+                <Title Level="2" Id="trainer-play-time-title">Play time</Title>
+                @if (Capabilities.CanEditPlayTime)
+                {
+                    <fieldset disabled="@(!_hasTrainerDraft)">
+                        <legend>Play time</legend>
+                        <Space Wrap>
+                            <label for="trainer-play-time-hours_input">
+                                <Text Strong>Hours</Text>
+                                <AntDesign.InputNumber
+                                    Id="trainer-play-time-hours"
+                                    TValue="int"
+                                    Value="@_draftPlayTimeHours"
+                                    OnChange="HandlePlayTimeHoursChanged"
+                                    name="trainer-play-time-hours"
+                                    Min="0" />
+                            </label>
+                            <label for="trainer-play-time-minutes_input">
+                                <Text Strong>Minutes</Text>
+                                <AntDesign.InputNumber
+                                    Id="trainer-play-time-minutes"
+                                    TValue="int"
+                                    Value="@_draftPlayTimeMinutes"
+                                    OnChange="HandlePlayTimeMinutesChanged"
+                                    name="trainer-play-time-minutes"
+                                    Min="0"
+                                    Max="59" />
+                            </label>
+                            <label for="trainer-play-time-seconds_input">
+                                <Text Strong>Seconds</Text>
+                                <AntDesign.InputNumber
+                                    Id="trainer-play-time-seconds"
+                                    TValue="int"
+                                    Value="@_draftPlayTimeSeconds"
+                                    OnChange="HandlePlayTimeSecondsChanged"
+                                    name="trainer-play-time-seconds"
+                                    Min="0"
+                                    Max="59" />
+                            </label>
+                        </Space>
+                    </fieldset>
+                }
+                else
+                {
+                    <Alert
+                        Type="@AlertType.Info"
+                        Message="Play time is read-only for this save"
+                        Description="The trainer capability contract did not verify a safe play-time write for this format."
+                        ShowIcon="true" />
+                }
+            </section>
+
+            <section aria-labelledby="trainer-progression-title">
+                <Title Level="2" Id="trainer-progression-title">Progression availability</Title>
+                <Alert
+                    Type="@AlertType.Info"
+                    Message="Progression editing is unavailable"
+                    Description="This trainer capability contract does not expose structured progression actions for this save."
+                    ShowIcon="true" />
+            </section>
+
+            <section aria-labelledby="trainer-draft-actions-title">
+                <Title Level="2" Id="trainer-draft-actions-title">Save draft</Title>
+                <Space Wrap>
+                    @if (_hasTrainerDraft)
+                    {
+                        <Button Type="@ButtonType.Primary" OnClick="ApplyChanges">Apply changes</Button>
+                        <Button OnClick="DiscardChanges">Discard changes</Button>
+                    }
+                    else
+                    {
+                        <Button Type="@ButtonType.Primary" OnClick="StartEditing" Disabled="@GameService.HasDraft">Start editing</Button>
+                    }
+                    <Button Danger OnClick="ShowRestoreOriginalConfirmation" Disabled="@GameService.HasDraft">Restore original</Button>
+                </Space>
+
+                @if (_isRestoreOriginalConfirmationVisible)
+                {
+                    <Alert Type="@AlertType.Warning" Message="Restore the original uploaded save?" ShowIcon="true">
+                        <Paragraph>This replaces the active session with the original uploaded save. Applied changes will be lost.</Paragraph>
+                        <Space Wrap>
+                            <Button Danger Type="@ButtonType.Primary" OnClick="RestoreOriginal">Restore original</Button>
+                            <Button OnClick="HideRestoreOriginalConfirmation">Cancel</Button>
+                        </Space>
+                    </Alert>
+                }
+            </section>
+        }
+    </Flex>
+</section>

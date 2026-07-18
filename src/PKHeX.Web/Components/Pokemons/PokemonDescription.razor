@@ -10,11 +10,14 @@
     <DescriptionsItem Title="Species">
         @* Disabled for now as changing species leaves out some dirty data in the trash. *@
         @* To figure out how to make a clean evolution/devolution. *@
-        <SpeciesSelect
-            Source="SpeciesSelect.DataSource.OnlySpeciesChain"
-            SelectedSpecies="Pokemon.Species"
-            SelectedSpeciesChanged="HandleSelectedSpeciesChanged"
-            ShowIcon="false"/>
+        <label>
+            <span>Choose species</span>
+            <SpeciesSelect
+                Source="SpeciesSelect.DataSource.OnlySpeciesChain"
+                SelectedSpecies="Pokemon.Species"
+                SelectedSpeciesChanged="HandleSelectedSpeciesChanged"
+                ShowIcon="false"/>
+        </label>
     </DescriptionsItem>
 
     <DescriptionsItem Title="Types">
@@ -196,7 +199,7 @@
     {
         if (definition is null) return Task.CompletedTask;
         
-        Pokemon.Species = definition;
+        Pokemon.ChangeSpecies(definition);
         _editableNickname.Text = Pokemon.Nickname;
         return OnPokemonChanged.InvokeAsync(Pokemon);
     }

@@ -17,11 +17,28 @@ public class PokemonParty(Game game) : IMutablePokemonCollection
         {
             game.SaveFile.PartyData = _partyData;
         }
-        catch (ArgumentOutOfRangeException e) when (e.Message == "Specified argument was out of the range of valid values. (Parameter 'index')")
+        catch (ArgumentOutOfRangeException)
         {
-            // there's some weird bug in some versions, that setting party data goes beyond the boundaries
-            // since the whole set mostly have executed, we consider it to still be a succeeded set operation
+            if (!PartyMatchesSaveFile())
+                throw;
         }
+    }
+
+    private bool PartyMatchesSaveFile()
+    {
+        var intendedParty = _partyData.Where(pokemon => pokemon.Species != 0).ToList();
+        var savedParty = game.SaveFile.PartyData;
+        if (savedParty.Count != intendedParty.Count)
+            return false;
+
+        for (var partyIndex = 0; partyIndex < savedParty.Count; partyIndex++)
+        {
+            if (savedParty[partyIndex].GetType() != intendedParty[partyIndex].GetType() ||
+                !savedParty[partyIndex].Data.SequenceEqual(intendedParty[partyIndex].Data))
+                return false;
+        }
+
+        return true;
     }
 
     public void AddOrUpdate(UniqueId id, Pokemon pokemon)
@@ -30,10 +47,10 @@ public class PokemonParty(Game game) : IMutablePokemonCollection
 
         if (existing is null)
             throw new InvalidOperationException("Adding pokemons to the party is not supported.");
-        
+
         var index = _partyData.IndexOf(existing);
         _partyData[index] = pokemon.Pkm;
-        
+
         Commit();
     }
 }

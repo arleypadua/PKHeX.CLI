@@ -156,6 +156,30 @@ public record Stats(PKM Pokemon, Stats.StatsType Type, bool VirtualStats = false
 
     public int Total => Attack + Defense + SpecialAttack + SpecialDefense + Health + Speed;
 
+    /// <summary>
+    /// Gets the maximum value representable by this Pokemon's format for the selected stat type.
+    /// </summary>
+    public int MaximumValue => Type switch
+    {
+        StatsType.EV => Pokemon.MaxEV,
+        StatsType.IV => Pokemon.MaxIV,
+        _ => throw new InvalidOperationException($"stats type {Type} does not expose a maximum value"),
+    };
+
+    /// <summary>
+    /// Applies PKHeX Core's format-aware maximum EV distribution.
+    /// The distribution respects aggregate EV limits but does not guarantee encounter legality.
+    /// </summary>
+    public void SetToMaximum()
+    {
+        if (Type is not StatsType.EV)
+            throw new InvalidOperationException($"stats type {Type} does not support maximum EV distribution");
+
+        Span<int> effortValues = stackalloc int[6];
+        EffortValues.SetMax(effortValues, Pokemon);
+        Pokemon.SetEVs(effortValues);
+    }
+
     public enum StatsType
     {
         Base,

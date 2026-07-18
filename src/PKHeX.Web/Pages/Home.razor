@@ -1,4 +1,5 @@
 ﻿@page "/"
+@implements IDisposable
 @using PKHeX.Web.Plugins
 @using PKHeX.Web.Services.Plugins
 @using PKHeX.Web.Components.Ads
@@ -14,36 +15,96 @@
 
     @if (_game is not null)
     {
+        @if (_hasHomeDraft)
+        {
+            <Alert
+                Type="@AlertType.Info"
+                Message="Editing a draft"
+                Description="Changes stay in this draft until you apply them. Leaving Home discards the draft."
+                ShowIcon="true" />
+        }
+        else if (!string.IsNullOrWhiteSpace(_operationMessage))
+        {
+            <Alert
+                Type="@AlertType.Success"
+                Message="@_operationMessage"
+                ShowIcon="true"
+                Closable
+                OnClose="ClearOperationMessage" />
+        }
+
         <Descriptions Title="Trainer" Bordered Column="@ThemeService.ColumnsConfiguration" Size="DescriptionsSize.Small">
             <DescriptionsItem Title="TID/SID">@_game.Trainer.Id</DescriptionsItem>
             <DescriptionsItem Title="Name">@_game.Trainer.Name</DescriptionsItem>
             <DescriptionsItem Title="Gender">
-                <GenderSelector
-                    Gender="@_game.Trainer.Gender"
-                    OnGenderChanged="HandleGenderChanged"/>
+                @if (CanEditHomeGender)
+                {
+                    <GenderSelector
+                        Gender="@_game.Trainer.Gender"
+                        OnGenderChanged="HandleGenderChanged"
+                        Disabled="@(!_hasHomeDraft)" />
+                }
+                else
+                {
+                    <Text>@_game.Trainer.Gender.Name</Text>
+                    <br />
+                    <Text>Gender is read-only for this save.</Text>
+                }
             </DescriptionsItem>
-            <DescriptionsItem Title="Cash">
-                <AntDesign.InputNumber
-                    TValue="uint"
-                    Formatter='value => $"$ {value}"'
-                    Value="@_game.Trainer.Money.Amount"
-                    OnChange="newValue => _game.Trainer.Money.Set(newValue)"
-                    Style="width: 100%; max-width: 170px;"
-                    Min="0" Max="999999"/>
+            <DescriptionsItem>
+                <TitleTemplate>
+                    <label for="trainer-cash_input">Cash</label>
+                </TitleTemplate>
+                <ChildContent>
+                    <AntDesign.InputNumber
+                        Id="trainer-cash"
+                        TValue="uint"
+                        Formatter='value => $"$ {value}"'
+                        Value="@_game.Trainer.Money.Amount"
+                        OnChange="HandleMoneyChanged"
+                        Disabled="@(!_hasHomeDraft)"
+                        Style="width: 100%; max-width: 170px;"
+                        Min="0" Max="999999"/>
+                </ChildContent>
             </DescriptionsItem>
             @if (_game.BattlePoints.IsSupported(out var supported))
             {
-                <DescriptionsItem Title="Battle Points">
-                    <AntDesign.InputNumber
-                        TValue="int"
-                        Value="@supported.BattlePoints"
-                        OnChange="newValue => supported.BattlePoints = newValue"
-                        Style="width: 100%; max-width: 170px;"
-                        Min="0" Max="@ushort.MaxValue"/>
+                <DescriptionsItem>
+                    <TitleTemplate>
+                        <label for="trainer-battle-points_input">Battle Points</label>
+                    </TitleTemplate>
+                    <ChildContent>
+                        <AntDesign.InputNumber
+                            Id="trainer-battle-points"
+                            TValue="int"
+                            Value="@supported.BattlePoints"
+                            OnChange="newValue => HandleBattlePointsChanged(supported, newValue)"
+                            Disabled="@(!_hasHomeDraft)"
+                            Style="width: 100%; max-width: 170px;"
+                            Min="0" Max="@ushort.MaxValue"/>
+                    </ChildContent>
                 </DescriptionsItem>
             }
             <DescriptionsItem Title="Rival">@_game.Trainer.RivalName</DescriptionsItem>
         </Descriptions>
+
+        <Space Wrap>
+            @if (_hasHomeDraft)
+            {
+                <SpaceItem>
+                    <Button Type="@ButtonType.Primary" OnClick="ApplyChanges">Apply changes</Button>
+                </SpaceItem>
+                <SpaceItem>
+                    <Button OnClick="DiscardChanges">Discard changes</Button>
+                </SpaceItem>
+            }
+            else
+            {
+                <SpaceItem>
+                    <Button Type="@ButtonType.Primary" OnClick="StartEditing">Start editing</Button>
+                </SpaceItem>
+            }
+        </Space>
     }
     
     <HomeMultiplexAdSlot />
@@ -81,36 +142,50 @@
     private Game? _game;
     private List<IQuickAction> _actions = [];
     private Exception? _quickActionsFailure;
+    private bool _hasHomeDraft;
+    private string? _operationMessage;
+
+    private const string DraftBlockingMessage = "Apply or discard the Home draft before using quick actions.";
+
+    private bool CanEditHomeGender => _game is not null &&
+                                      _game.Trainer.Editor.Capabilities.CanEditGender &&
+                                      _game.Trainer.Gender != Gender.Genderless;
 
     protected override void OnInitialized()
     {
-        _game = GameService.Game;
+        _game = GameService.IsLoaded ? GameService.LoadedGame : null;
     }
 
     private RenderFragment RenderActionButton(IQuickAction action)
     {
-        if (action.DisabledInfo.Disabled && !string.IsNullOrWhiteSpace(action.DisabledInfo.Reason))
+        var isDraftBlocked = _hasHomeDraft || GameService.HasDraft;
+        var isDisabled = isDraftBlocked || action.DisabledInfo.Disabled;
+        var disabledReason = isDraftBlocked ? DraftBlockingMessage : action.DisabledInfo.Reason;
+
+        if (isDisabled && !string.IsNullOrWhiteSpace(disabledReason))
         {
-            return @<Tooltip Title="@action.DisabledInfo.Reason">
+            return @<Tooltip Title="@disabledReason">
                        <Button
                            Type="@ButtonType.Link"
                            OnClick="@(() => HandleActionButtonClick(action))"
-                           Disabled="@action.DisabledInfo.Disabled">
+                           Disabled="true">
                            @action.Label
                        </Button>
                    </Tooltip>;
         }
 
         return @<Button
-                    Type="@ButtonType.Link"
-                    OnClick="@(() => HandleActionButtonClick(action))"
-                    Disabled="@action.DisabledInfo.Disabled">
-                   @action.Label
-               </Button>;
+                Type="@ButtonType.Link"
+                OnClick="@(() => HandleActionButtonClick(action))"
+                Disabled="@isDisabled">
+                @action.Label
+            </Button>;
     }
 
     private async Task HandleActionButtonClick(IQuickAction action)
     {
+        if (_hasHomeDraft || GameService.HasDraft) return;
+
         await PlugInRuntime.RunOn(action, _ => action.OnActionRequested());
     }
 
@@ -128,10 +203,66 @@
 
     private Task HandleGenderChanged(Gender gender)
     {
-        if (_game is null) return Task.CompletedTask;
-        _game.Trainer.Gender = gender;
+        if (!_hasHomeDraft || _game is null || !CanEditHomeGender) return Task.CompletedTask;
+        if (gender != Gender.Male && gender != Gender.Female) return Task.CompletedTask;
+
+        _game.Trainer.Editor.SetGender(gender);
 
         return Task.CompletedTask;
+    }
+
+    private void HandleMoneyChanged(uint amount)
+    {
+        if (!_hasHomeDraft || _game is null) return;
+        _game.Trainer.Money.Set(amount);
+    }
+
+    private void HandleBattlePointsChanged(BattlePoints.Supported supportedBattlePoints, int amount)
+    {
+        if (!_hasHomeDraft) return;
+        supportedBattlePoints.BattlePoints = amount;
+    }
+
+    private void StartEditing()
+    {
+        if (_hasHomeDraft || GameService.HasDraft) return;
+
+        _game = GameService.CreateDraft();
+        _hasHomeDraft = true;
+        ClearOperationMessage();
+    }
+
+    private void ApplyChanges()
+    {
+        if (!_hasHomeDraft || !GameService.HasDraft) return;
+
+        GameService.ApplyDraft();
+        CompleteDraft("Changes applied to this session.");
+    }
+
+    private void DiscardChanges()
+    {
+        if (_hasHomeDraft && GameService.HasDraft)
+            GameService.DiscardDraft();
+
+        CompleteDraft("Draft discarded. No changes were applied.");
+    }
+
+    private void CompleteDraft(string operationMessage)
+    {
+        _hasHomeDraft = false;
+        _game = GameService.IsLoaded ? GameService.LoadedGame : null;
+        _operationMessage = operationMessage;
+    }
+
+    private void ClearOperationMessage() => _operationMessage = null;
+
+    public void Dispose()
+    {
+        if (_hasHomeDraft && GameService.HasDraft)
+            GameService.DiscardDraft();
+
+        _hasHomeDraft = false;
     }
 
 }

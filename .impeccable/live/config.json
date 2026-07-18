@@ -1,0 +1,6 @@
+{
+  "files": ["src/PKHeX.Web/wwwroot/index.html"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}

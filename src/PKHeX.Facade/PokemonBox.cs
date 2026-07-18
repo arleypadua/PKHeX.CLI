@@ -19,6 +19,9 @@ public class PokemonBox : IMutablePokemonCollection
 
     public IDictionary<Species, List<Pokemon>> BySpecies { get; private set; } = default!;
     public IList<Pokemon> All => _pokemonList;
+    public int Capacity => _game.SaveFile.BoxCount * _game.SaveFile.BoxSlotCount;
+    public int OccupiedSlotCount => _pokemonList.Count(pokemon => pokemon.Species != Species.None);
+    public int AvailableSlotCount => Capacity - OccupiedSlotCount;
 
     public void Commit()
     {
@@ -29,13 +32,47 @@ public class PokemonBox : IMutablePokemonCollection
 
     public bool AddOnEmptySlot(Pokemon pokemon)
     {
-        var openSlot = _game.SaveFile.NextOpenBoxSlot();
-        if (openSlot == -1) return false;
+        return AddToEmptySlots([pokemon]).AddedCount == 1;
+    }
 
-        _game.SaveFile.SetBoxSlotAtIndex(pokemon.Pkm, openSlot);
-        PopulateFromSave();
+    public PokemonBoxAdditionSummary AddToEmptySlots(IEnumerable<Pokemon> pokemonToAdd)
+    {
+        var requestedPokemon = pokemonToAdd.ToList();
+        var addedCount = 0;
+        var incompatibleCount = 0;
+        var capacitySkippedCount = 0;
 
-        return true;
+        for (var pokemonIndex = 0; pokemonIndex < requestedPokemon.Count; pokemonIndex++)
+        {
+            var openSlot = _game.SaveFile.NextOpenBoxSlot();
+            if (openSlot == -1)
+            {
+                capacitySkippedCount = requestedPokemon.Count - pokemonIndex;
+                break;
+            }
+
+            var pokemon = requestedPokemon[pokemonIndex];
+            var compatiblePokemon = EntityConverter.ConvertToType(pokemon.Pkm, _game.SaveFile.PKMType, out _);
+            if (compatiblePokemon?.GetType() != _game.SaveFile.PKMType ||
+                !_game.SaveFile.IsCompatiblePKM(compatiblePokemon) ||
+                _game.SaveFile.EvaluateCompatibility(compatiblePokemon).Count > 0)
+            {
+                incompatibleCount++;
+                continue;
+            }
+
+            _game.SaveFile.SetBoxSlotAtIndex(compatiblePokemon, openSlot);
+            addedCount++;
+        }
+
+        if (addedCount > 0) PopulateFromSave();
+
+        return new PokemonBoxAdditionSummary(
+            requestedPokemon.Count,
+            addedCount,
+            incompatibleCount,
+            capacitySkippedCount,
+            AvailableSlotCount);
     }
 
     private void PopulateFromSave()
@@ -75,3 +112,10 @@ public class PokemonBox : IMutablePokemonCollection
         PopulateFromSave();
     }
 }
+
+public readonly record struct PokemonBoxAdditionSummary(
+    int RequestedCount,
+    int AddedCount,
+    int IncompatibleCount,
+    int CapacitySkippedCount,
+    int AvailableSlotCount);

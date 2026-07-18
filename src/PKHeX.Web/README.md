@@ -2,17 +2,22 @@
 
 A proof-of-concept with Blazor WASM
 
-## Debug
+## Development
 
-The best way to run so far is by running:
+From the repository root, install submodules, .NET dependencies, and both JavaScript asset projects:
 
-```bash
-# build/watch the js project at src/PKHeX.Web/_js
-cd _js
-npm run build:watch
+```sh
+./setup-dev.sh
 ```
 
-```bash
-# run the dotnet Blazor project at the root
-dotnet watch run --project ./ --no-hot-reload
+Start the Blazor application:
+
+```sh
+dotnet watch run --project src/PKHeX.Web --no-hot-reload
+```
+
+To rebuild the `_js` assets continuously while changing JavaScript, run this in another terminal:
+
+```sh
+npm run build:watch --prefix src/PKHeX.Web/_js
 ```

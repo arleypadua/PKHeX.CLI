@@ -31,7 +31,7 @@
                     @bind-Value="@_itemCountToBeAdded"
                     PlaceHolder="Quantity"
                     Min="0"
-                    Max="999"/>
+                    Max="@((uint)PKHeX.Facade.Inventory.ItemTargetCount)"/>
             </Space>
             ;
     }

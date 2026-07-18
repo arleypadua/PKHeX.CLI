@@ -22,7 +22,8 @@
             SelectedKeys="@( [SelectedMenuItem?.Route ?? string.Empty])">
             @foreach (var item in MenuItems)
             {
-                @if (!item.VisibleWithoutGame && !GameService.IsLoaded) continue;
+                 @if (!item.VisibleWithoutGame && !GameService.IsLoaded) continue;
+                 @if (item.RequiresPokedexSupport && !GameService.LoadedGame.Pokedex.Capabilities.SupportsSpeciesSeenCaught) continue;
 
                 @if (item.Nested is null || item.Nested.Count == 0)
                 {
@@ -123,7 +124,9 @@
     [
         new("", "Home", "home", true),
         new("party", "Party", "team"),
+        new("trainer", "Trainer", "idcard"),
         new("pokemon-box", "Pokemon Box", "inbox"),
+        new("pokedex", "Pokédex", "book", RequiresPokedexSupport: true),
         new("items", "Items", "shop"),
         new("plugins", "Plug-Ins", "api", true, PluginMenuItems),
         new("analytics", "Analytics", "line-chart", true),
@@ -198,7 +201,13 @@
             </span>
         </MenuItem>;
 
-    record MenuItem(string Route, string Label, string? Icon = null, bool VisibleWithoutGame = false, List<MenuItem>? Nested = null);
+    record MenuItem(
+        string Route,
+        string Label,
+        string? Icon = null,
+        bool VisibleWithoutGame = false,
+        List<MenuItem>? Nested = null,
+        bool RequiresPokedexSupport = false);
 
     public void Dispose()
     {

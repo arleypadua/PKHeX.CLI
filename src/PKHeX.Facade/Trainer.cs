@@ -7,12 +7,13 @@ namespace PKHeX.Facade;
 public class Trainer
 {
     private readonly Game _game;
-    
+
     public Trainer(Game game)
     {
         _game = game;
 
         Id = new EntityId(_game.SaveFile.DisplayTID, _game.SaveFile.DisplaySID);
+        Editor = new TrainerEditor(_game);
         Money = new Money(_game);
         Inventories = new Inventories(_game);
         Party = new PokemonParty(_game);
@@ -20,12 +21,13 @@ public class Trainer
     }
 
     public EntityId Id { get; }
+    public TrainerEditor Editor { get; }
     public string Name => _game.SaveFile.OT;
-    public Gender Gender
-    {
-        get => Gender.FromByte(_game.SaveFile.Gender);
-        set => _game.SaveFile.Gender = value.ToByte();
-    }
+    public Gender Gender => Gender.FromByte(_game.SaveFile.Gender);
+    public TrainerPlayTime PlayTime => new(
+        _game.SaveFile.PlayedHours,
+        _game.SaveFile.PlayedMinutes,
+        _game.SaveFile.PlayedSeconds);
 
     public Money Money { get; }
     public Inventories Inventories { get; private set; }
@@ -52,7 +54,7 @@ public class Trainer
             PokemonSource.Party => Party,
             _ => throw new InvalidOperationException($"{source} is not supported when updating pokemon"),
         };
-        
+
         collection.AddOrUpdate(id, pokemon);
     }
 

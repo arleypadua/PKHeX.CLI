@@ -12,12 +12,22 @@
         <TitleTemplate>Box</TitleTemplate>
 
         <PageHeaderExtra>
-            <ButtonOrMenu Actions="ExtraActions" />
+            <div class="pokemon-box__actions">
+                <Button Type="ButtonType.Default" Icon="folder-open" OnClick="ImportPokemonFiles">
+                    Import Pokemon files
+                </Button>
+                <Button Type="ButtonType.Link" OnClick="OnAdvancedEncounterClick">
+                    Advanced encounter search
+                </Button>
+                <ButtonOrMenu Actions="SecondaryActions" />
+            </div>
 
-            @* Helper for loading *.pk files *@
-            <InputFile OnChange="LoadPokemon" @ref="_inputGameFile" class="hidden-file-input"></InputFile>
+            <InputFile @key="_multiplePokemonInputKey" OnChange="ImportMultiplePokemon" @ref="_multiplePokemonInput" class="hidden-file-input" multiple accept="@PokemonFileAccept" aria-hidden="true" tabindex="-1" />
+            <InputFile OnChange="LoadPokemonForEditing" @ref="_singlePokemonInput" class="hidden-file-input" accept="@PokemonFileAccept" aria-hidden="true" tabindex="-1" />
         </PageHeaderExtra>
     </PageHeader>
+
+    <AvailablePokemon OnPokemonAdded="RefreshPokemonBox" />
 
     <PokemonTable 
         DataSource="@PokemonList" 
@@ -31,22 +41,20 @@
     [Inject] public required GameService GameService { get; set; }
     [Inject] public required JsService Js { get; set; }
     
-    private InputFile _inputGameFile = default!;
+    private InputFile _multiplePokemonInput = default!;
+    private InputFile _singlePokemonInput = default!;
+    private int _multiplePokemonInputKey;
+    private const int MaxPokemonImportCount = 100;
+    private static string PokemonFileAccept => string.Join(",", EntityFileExtension.GetExtensionsAll().Select(extension => $".{extension}"));
 
-    private IList<ButtonOrMenu.ButtonAction> ExtraActions => new List<ButtonOrMenu.ButtonAction>
+    private IList<ButtonOrMenu.ButtonAction> SecondaryActions => new List<ButtonOrMenu.ButtonAction>
     {
-        new ()
-        {
-            Type = ButtonType.Primary,
-            Label = "Add",
-            OnClickAsync = OnAddItemClick,
-        },
         new ()
         {
             Type = ButtonType.Link,
             Icon = IconType.Outline.FolderOpen,
-            Label = "Load *.pk",
-            OnClickAsync = async () => await Js.ClickOnAsync(_inputGameFile.Element)
+            Label = "Load one for editing",
+            OnClickAsync = async () => await Js.ClickOnAsync(_singlePokemonInput.Element)
         },
         new ()
         {
@@ -69,10 +77,15 @@
 
     private IList<Pokemon> _selectedPokemonList = [];
 
-    private Task OnAddItemClick()
+    private Task OnAdvancedEncounterClick()
     {
         Navigate.NavigateToSearchEncounter();
         return Task.CompletedTask;
+    }
+
+    private async Task ImportPokemonFiles()
+    {
+        await Js.ClickOnAsync(_multiplePokemonInput.Element);
     }
 
     private Task HandleExportShowdownClick()
@@ -105,12 +118,76 @@
         return Js.OpenSmogonDamageCalc(toBeExported);
     }
 
-    private async Task LoadPokemon(InputFileChangeEventArgs e)
+    private async Task LoadPokemonForEditing(InputFileChangeEventArgs inputFiles)
     {
-        using MemoryStream ms = new MemoryStream();
-        await e.File.OpenReadStream(2 * 1024 * 1000).CopyToAsync(ms);
+        using var pokemonStream = new MemoryStream();
+        await inputFiles.File.OpenReadStream(2 * 1024 * 1000).CopyToAsync(pokemonStream);
         
-        LoadPokemonService.Load(ms.ToArray());
+        LoadPokemonService.Load(pokemonStream.ToArray());
+    }
+
+    private async Task ImportMultiplePokemon(InputFileChangeEventArgs inputFiles)
+    {
+        if (inputFiles.FileCount > MaxPokemonImportCount)
+        {
+            _ = Notification.Open(new NotificationConfig
+            {
+                Message = "Too many Pokemon files",
+                Description = $"Select at most {MaxPokemonImportCount} files per import.",
+                NotificationType = NotificationType.Warning,
+            });
+            _multiplePokemonInputKey++;
+            return;
+        }
+
+        var selectedFiles = inputFiles.GetMultipleFiles(MaxPokemonImportCount);
+        var validPokemon = new List<Pokemon>();
+        var invalidFileNames = new List<string>();
+
+        foreach (var selectedFile in selectedFiles)
+        {
+            try
+            {
+                using var pokemonStream = new MemoryStream();
+                await selectedFile.OpenReadStream(2 * 1024 * 1000).CopyToAsync(pokemonStream);
+                validPokemon.Add(Pokemon.LoadFrom(pokemonStream.ToArray(), GameService.LoadedGame));
+            }
+            catch (Exception)
+            {
+                invalidFileNames.Add(selectedFile.Name);
+            }
+        }
+
+        var additionSummary = GameService.LoadedGame.Trainer.PokemonBox.AddToEmptySlots(validPokemon);
+        var descriptionParts = new List<string>
+        {
+            $"Added {additionSummary.AddedCount} of {selectedFiles.Count} selected files."
+        };
+
+        if (invalidFileNames.Count > 0)
+            descriptionParts.Add($"Invalid: {string.Join(", ", invalidFileNames)}.");
+        if (additionSummary.IncompatibleCount > 0)
+            descriptionParts.Add($"{additionSummary.IncompatibleCount} files were incompatible with this save.");
+        if (additionSummary.CapacitySkippedCount > 0)
+            descriptionParts.Add($"{additionSummary.CapacitySkippedCount} valid Pokemon did not fit.");
+
+        _ = Notification.Open(new NotificationConfig
+        {
+            Message = additionSummary.AddedCount > 0 ? "Pokemon imported" : "No Pokemon imported",
+            Description = string.Join(" ", descriptionParts),
+            NotificationType = additionSummary.AddedCount == selectedFiles.Count
+                ? NotificationType.Success
+                : NotificationType.Warning,
+        });
+
+        _multiplePokemonInputKey++;
+        await RefreshPokemonBox();
+    }
+
+    private Task RefreshPokemonBox()
+    {
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
 }

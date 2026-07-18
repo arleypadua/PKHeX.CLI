@@ -1,0 +1,301 @@
+@page "/pokedex"
+@implements IDisposable
+@using PKHeX.Facade.Repositories
+@inject GameService GameService
+
+<PageTitle>Pokédex</PageTitle>
+<Title Level="1" Id="pokedex-title">Pokédex</Title>
+
+@if (!GameService.IsLoaded)
+{
+    <Alert
+        Type="@AlertType.Info"
+        Message="Load a save to edit its Pokédex"
+        Description="Open or create a save first, then return here to review supported Pokédex entries."
+        ShowIcon="true" />
+}
+else if (!Capabilities.SupportsSpeciesSeenCaught)
+{
+    <Alert
+        Type="@AlertType.Warning"
+        Message="Pokédex editing is not supported for this save"
+        Description="This save format does not expose supported species seen or caught editing."
+        ShowIcon="true" />
+}
+else if (_game is not null)
+{
+    <section aria-labelledby="pokedex-title">
+        <Flex Direction="FlexDirection.Vertical" Style="width: 100%; gap: 20px;">
+            <div>
+                <Text>Choose a supported species and update its seen or caught status in a draft.</Text>
+            </div>
+
+            @if (HasAnotherPageDraft)
+            {
+                <Alert
+                    Type="@AlertType.Info"
+                    Message="Another editor has an active draft"
+                    Description="Apply or discard that draft before starting Pokédex editing."
+                    ShowIcon="true" />
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_operationMessage))
+            {
+                <div aria-live="polite">
+                    <Alert
+                        Type="@_operationAlertType"
+                        Message="@_operationMessage"
+                        ShowIcon="true"
+                        Closable
+                        OnClose="ClearOperationMessage" />
+                </div>
+            }
+
+            @if (_hasPokedexDraft)
+            {
+                <Alert
+                    Type="@AlertType.Info"
+                    Message="Editing a Pokédex draft"
+                    Description="Changes stay in this draft until you apply them. Leaving this page discards the draft."
+                    ShowIcon="true" />
+            }
+
+            <div role="group" aria-labelledby="pokedex-species-title">
+                <Title Level="2" Id="pokedex-species-title">Species</Title>
+                <Text>Search the species available in this save.</Text>
+                <SpeciesSelect
+                    @key="GameService.LoadedGame"
+                    Source="SpeciesSelect.DataSource.CurrentGame"
+                    SpeciesFilter="GameService.LoadedGame.Pokedex.SupportsSpeciesSeenCaught"
+                    SelectedSpecies="_selectedSpecies"
+                    SelectedSpeciesChanged="HandleSelectedSpeciesChanged" />
+            </div>
+
+            @if (_selectedSpecies is not null && _selectedState.HasValue)
+            {
+                <section aria-labelledby="pokedex-state-title">
+                    <Title Level="2" Id="pokedex-state-title">@_selectedSpecies.Name</Title>
+                    <Space Direction="SpaceDirection.Vertical">
+                        <SpaceItem>
+                            <label>
+                                <Switch
+                                    Value="@_selectedState.Value.IsSeen"
+                                    Disabled="@(!_hasPokedexDraft)"
+                                    OnChange="HandleSeenChanged" />
+                                <span>Seen</span>
+                            </label>
+                        </SpaceItem>
+                        <SpaceItem>
+                            <label>
+                                <Switch
+                                    Value="@_selectedState.Value.IsCaught"
+                                    Disabled="@(!_hasPokedexDraft)"
+                                    OnChange="HandleCaughtChanged" />
+                                <span>Caught</span>
+                            </label>
+                        </SpaceItem>
+                    </Space>
+                    @if (!_hasPokedexDraft)
+                    {
+                        <Text>Start editing to change this entry.</Text>
+                    }
+                </section>
+            }
+
+            <Space Wrap>
+                @if (_hasPokedexDraft)
+                {
+                    <SpaceItem>
+                        <Button Type="@ButtonType.Primary" OnClick="ApplyChanges">Apply changes</Button>
+                    </SpaceItem>
+                    <SpaceItem>
+                        <Button OnClick="DiscardChanges">Discard changes</Button>
+                    </SpaceItem>
+                }
+                else
+                {
+                    <SpaceItem>
+                        <Button Type="@ButtonType.Primary" OnClick="StartEditing" Disabled="@HasAnotherPageDraft">Start editing</Button>
+                    </SpaceItem>
+                }
+                <SpaceItem>
+                    <Button Danger OnClick="ShowRestoreOriginalConfirmation" Disabled="@GameService.HasDraft">Restore original</Button>
+                </SpaceItem>
+            </Space>
+        </Flex>
+    </section>
+}
+
+<Modal
+    Title="Restore the original uploaded save?"
+    @bind-Visible="_restoreOriginalConfirmationVisible"
+    OnOk="RestoreOriginal"
+    OnCancel="HideRestoreOriginalConfirmation">
+    <Paragraph>This discards all changes applied during this session and restores the original uploaded save.</Paragraph>
+</Modal>
+
+@code {
+    private Game? _game;
+    private SpeciesDefinition? _selectedSpecies;
+    private PokedexState? _selectedState;
+    private bool _hasPokedexDraft;
+    private bool _restoreOriginalConfirmationVisible;
+    private string? _operationMessage;
+    private AlertType _operationAlertType = AlertType.Success;
+
+    private PokedexCapabilities Capabilities => _game?.Pokedex.Capabilities ?? PokedexCapabilities.Unsupported;
+    private bool HasAnotherPageDraft => GameService.HasDraft && !_hasPokedexDraft;
+
+    protected override void OnInitialized()
+    {
+        GameService.OnGameLoaded += HandleActiveGameChanged;
+        GameService.OnActiveGameChanged += HandleActiveGameChanged;
+        ResetForActiveGame();
+    }
+
+    private void HandleSelectedSpeciesChanged(SpeciesDefinition species)
+    {
+        _selectedSpecies = species;
+        RefreshSelectedSpeciesState();
+    }
+
+    private void StartEditing()
+    {
+        if (_hasPokedexDraft || HasAnotherPageDraft) return;
+
+        _game = GameService.CreateDraft();
+        _hasPokedexDraft = true;
+        _operationMessage = "Pokédex draft started.";
+        _operationAlertType = AlertType.Info;
+        RefreshSelectedSpeciesState();
+    }
+
+    private void HandleSeenChanged(bool isSeen)
+    {
+        if (!_selectedState.HasValue) return;
+
+        SetSelectedSpeciesState(new PokedexState(isSeen, isSeen && _selectedState.Value.IsCaught));
+    }
+
+    private void HandleCaughtChanged(bool isCaught)
+    {
+        if (!_selectedState.HasValue) return;
+
+        SetSelectedSpeciesState(new PokedexState(isCaught || _selectedState.Value.IsSeen, isCaught));
+    }
+
+    private void SetSelectedSpeciesState(PokedexState state)
+    {
+        if (!_hasPokedexDraft || _game is null || _selectedSpecies is null) return;
+
+        try
+        {
+            _game.Pokedex.SetState(_selectedSpecies, state);
+            _selectedState = _game.Pokedex.GetState(_selectedSpecies);
+            ClearOperationMessage();
+        }
+        catch (Exception exception) when (exception is PokedexOperationNotSupportedException or ArgumentOutOfRangeException or InvalidOperationException)
+        {
+            ShowOperationError(exception.Message);
+        }
+    }
+
+    private void ApplyChanges()
+    {
+        if (!_hasPokedexDraft || !GameService.HasDraft) return;
+
+        GameService.ApplyDraft();
+        CompleteDraft("Pokédex changes applied to this session.");
+    }
+
+    private void DiscardChanges()
+    {
+        if (_hasPokedexDraft && GameService.HasDraft)
+            GameService.DiscardDraft();
+
+        CompleteDraft("Pokédex draft discarded. No changes were applied.");
+    }
+
+    private void ShowRestoreOriginalConfirmation()
+    {
+        if (GameService.IsLoaded && !GameService.HasDraft)
+            _restoreOriginalConfirmationVisible = true;
+    }
+
+    private Task HideRestoreOriginalConfirmation()
+    {
+        _restoreOriginalConfirmationVisible = false;
+        return Task.CompletedTask;
+    }
+
+    private Task RestoreOriginal()
+    {
+        if (!GameService.IsLoaded || GameService.HasDraft) return Task.CompletedTask;
+
+        GameService.RestoreOriginal();
+        CompleteDraft("Original save restored. Applied session changes were discarded.");
+        _restoreOriginalConfirmationVisible = false;
+        return Task.CompletedTask;
+    }
+
+    private void CompleteDraft(string operationMessage)
+    {
+        _hasPokedexDraft = false;
+        _game = GameService.IsLoaded ? GameService.LoadedGame : null;
+        _operationMessage = operationMessage;
+        _operationAlertType = AlertType.Success;
+        RefreshSelectedSpeciesState();
+    }
+
+    private void RefreshSelectedSpeciesState()
+    {
+        if (_game is null || _selectedSpecies is null || !Capabilities.SupportsSpeciesSeenCaught)
+        {
+            _selectedState = null;
+            return;
+        }
+
+        try
+        {
+            _selectedState = _game.Pokedex.GetState(_selectedSpecies);
+        }
+        catch (Exception exception) when (exception is PokedexOperationNotSupportedException or ArgumentOutOfRangeException or InvalidOperationException)
+        {
+            _selectedState = null;
+            ShowOperationError(exception.Message);
+        }
+    }
+
+    private void HandleActiveGameChanged(object? sender, EventArgs eventArgs)
+    {
+        ResetForActiveGame();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ResetForActiveGame()
+    {
+        _game = GameService.IsLoaded ? GameService.LoadedGame : null;
+        _selectedSpecies = null;
+        _selectedState = null;
+        _hasPokedexDraft = false;
+        _restoreOriginalConfirmationVisible = false;
+        ClearOperationMessage();
+    }
+
+    private void ShowOperationError(string message)
+    {
+        _operationMessage = message;
+        _operationAlertType = AlertType.Warning;
+    }
+
+    private void ClearOperationMessage() => _operationMessage = null;
+
+    public void Dispose()
+    {
+        GameService.OnGameLoaded -= HandleActiveGameChanged;
+        GameService.OnActiveGameChanged -= HandleActiveGameChanged;
+
+        if (_hasPokedexDraft && GameService.HasDraft)
+            GameService.DiscardDraft();
+    }
+}
